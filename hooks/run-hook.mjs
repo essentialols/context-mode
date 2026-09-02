@@ -73,18 +73,24 @@ process.on("unhandledRejection", (err) => {
  *
  * @param {() => Promise<void> | void} handler
  */
-export async function runHook(handler) {
+export async function runHook(handler, { bootstrapNativeDeps = true } = {}) {
   try {
     await import("./suppress-stderr.mjs");
   } catch (e) {
     logError(e);
     /* continue — non-fatal */
   }
-  try {
-    await import("./ensure-deps.mjs");
-  } catch (e) {
-    logError(e);
-    /* continue — handler may still work */
+  // UserPromptSubmit is synchronous with typing. Its handler can gracefully
+  // skip persistence when SQLite is unavailable, whereas native dependency
+  // repair may copy/re-sign a binary or rebuild it and block the prompt for
+  // tens of seconds. Keep that maintenance off this latency-critical path.
+  if (bootstrapNativeDeps) {
+    try {
+      await import("./ensure-deps.mjs");
+    } catch (e) {
+      logError(e);
+      /* continue — handler may still work */
+    }
   }
   try {
     await handler();

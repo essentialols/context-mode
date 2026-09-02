@@ -19,7 +19,7 @@
  * @see https://github.com/mksglu/context-mode/issues/203
  */
 
-import { existsSync, copyFileSync, renameSync, unlinkSync } from "node:fs";
+import { existsSync, copyFileSync, readFileSync, renameSync, unlinkSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -139,6 +139,14 @@ function replaceActiveNativeBinaryFromCache(abiCachePath, binaryPath) {
   }
 }
 
+function activeBinaryMatchesCache(abiCachePath, binaryPath) {
+  try {
+    return readFileSync(abiCachePath).equals(readFileSync(binaryPath));
+  } catch {
+    return false;
+  }
+}
+
 export function ensureNativeCompat(pluginRoot) {
   // Pre-compute paths regardless of runtime — the Bun branch below uses
   // them to seed the ABI cache (#543) so the next /ctx-upgrade boot (under
@@ -171,7 +179,17 @@ export function ensureNativeCompat(pluginRoot) {
   try {
     if (!existsSync(nativeDir)) return;
 
-    // Fast path: cached binary for this ABI already exists — swap in
+    // Fast path: both the active binary and this runtime's ABI-specific cache
+    // exist. Hooks are short-lived processes, so copying and ad-hoc signing
+    // the same native binary on every PreToolUse/UserPromptSubmit call turns a
+    // sub-millisecond guard into multi-second tool latency. The cache name
+    // itself keys the Node ABI; a missing cache still takes the repair path.
+    if (existsSync(abiCachePath) && existsSync(binaryPath)
+      && activeBinaryMatchesCache(abiCachePath, binaryPath)) {
+      return;
+    }
+
+    // The active binary is missing but a compatible cached copy exists.
     if (existsSync(abiCachePath)) {
       replaceActiveNativeBinaryFromCache(abiCachePath, binaryPath);
       if (skipProbe) return; // Trust the cached binary — skip SIGSEGV-prone probe

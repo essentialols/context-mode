@@ -105,4 +105,4 @@ await runHook(async () => {
   } catch {
     // UserPromptSubmit must never block the session — silent fallback
   }
-});
+}, { bootstrapNativeDeps: false });
