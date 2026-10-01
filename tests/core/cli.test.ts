@@ -373,18 +373,21 @@ async function loadEnsureNativeCompat(): Promise<(pluginRoot: string) => void> {
   const replaceBinaryMatch = src.match(/^function replaceActiveNativeBinaryFromCache\b[\s\S]*?^}/m);
   const codesignMatch = src.match(/^(?:export\s+)?function codesignBinary\b[\s\S]*?^}/m);
   const probeMatch = src.match(/^function probeNativeInChildProcess\b[\s\S]*?^}/m);
+  const matchesCacheMatch = src.match(/^function activeBinaryMatchesCache\b[\s\S]*?^}/m);
+  const matchesCache = matchesCacheMatch ? matchesCacheMatch[0] + "\n" : "";
   const replaceBinary = replaceBinaryMatch ? replaceBinaryMatch[0] + "\n" : "";
   const codesign = codesignMatch ? codesignMatch[0] + "\n" : "";
   const probe = probeMatch ? probeMatch[0] + "\n" : "";
 
   const tmpFile = join(tmpdir(), `abi-test-${Date.now()}.mjs`);
   writeFileSync(tmpFile, [
-    'import { existsSync, copyFileSync, renameSync, unlinkSync } from "node:fs";',
+    'import { existsSync, copyFileSync, readFileSync, renameSync, unlinkSync } from "node:fs";',
     'import { resolve } from "node:path";',
     'import { createRequire } from "node:module";',
     'import { execSync } from "node:child_process";',
     helpers,
     codesign,
+    matchesCache,
     replaceBinary,
     probe,
     `${match[0]}`,
